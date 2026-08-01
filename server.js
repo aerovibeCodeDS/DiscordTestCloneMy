@@ -6,16 +6,14 @@ const app = express();
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Render сам назначит порт через переменную окружения
 const PORT = process.env.PORT || 3000;
-const server = http.createServer(app);
 
 // Хранилища
 let serverFriendRequests = [];
 let serverFriends = {};
 let peerIds = {};
 
-// Отдаём index.html при заходе на главную
+// Отдаём index.html
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
@@ -63,12 +61,10 @@ app.get('/api/friends/:userId', (req, res) => {
   res.json(serverFriends[req.params.userId] || []);
 });
 
-// API peerId
 app.post('/api/peerid', (req, res) => {
   const { userId, peerId } = req.body;
   if (!userId || !peerId) return res.status(400).json({ error: 'userId and peerId required' });
   peerIds[userId] = peerId;
-  console.log(`PeerID зарегистрирован: ${userId} -> ${peerId}`);
   res.json({ success: true });
 });
 
@@ -82,15 +78,18 @@ app.get('/api/test', (req, res) => {
   res.json({ status: 'ok', peerIds, friends: serverFriends });
 });
 
-// PeerJS — привязан к ОСНОВНОМУ HTTP-серверу (не отдельный порт!)
+// Создаём HTTP сервер
+const server = http.createServer(app);
+
+// PeerJS — привязываем к основному серверу
 const peerServer = PeerServer({
-  server: server,    // <-- привязываем к существующему серверу
+  server: server,
   path: '/myapp',
   allow_discovery: true
 });
 
-// Слушаем один порт (Render даст свой)
+// Запускаем
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`PeerJS at /myapp`);
+  console.log(`PeerJS running on same port at /myapp`);
 });
