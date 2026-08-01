@@ -1325,30 +1325,48 @@ if (data.type === 'voice_join') {
     let incomingCall = null;
 
     function initPeer() {
-        if (!currentUser) return;
-        if (peer) { peer.destroy(); peer = null; }
-        const peerId = 'discord-' + currentUser.id + '-' + Date.now().toString(36);
-        peer = new Peer(peerId, {
-    debug: 2,
-    host: window.location.hostname,
-    port: 443,
-    secure: true,
-    path: '/myapp',
-    config: {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-        ]
-    }
+    if (!currentUser) return;
+    if (peer) { peer.destroy(); peer = null; }
+    const peerId = currentUser.id + '-' + Date.now().toString(36);
+    peer = new Peer(peerId, {
+        debug: 2,
+        host: '0.peerjs.com',
+        port: 443,
+        secure: true,
+        path: '/',
+        config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                }
+            ]
+        }
         });
         peer.on('open', function(id) {
-            console.log('✅ PeerJS открыт: ' + id);
-            const d = loadData();
-            const u = findUser(d, currentUser.id);
-            if (u) { u.peerId = id; saveData(d); }
-            broadcast({ type: 'user_online', userId: currentUser.id });
-            toast('PeerJS подключён!', 'success');
-        });
+        console.log('✅ PeerJS открыт: ' + id);
+        const d = loadData();
+        const u = findUser(d, currentUser.id);
+        if (u) { u.peerId = id; saveData(d); }
+        broadcast({ type: 'user_online', userId: currentUser.id });
+        toast('Готов к звонкам!', 'success');
+    });
         peer.on('call', function(call) {
     // Проверяем, это звонок из голосового канала?
     if (call.metadata && call.metadata.type === 'voice_channel') {

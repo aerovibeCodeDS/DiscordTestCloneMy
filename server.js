@@ -1,6 +1,5 @@
 const express = require('express');
 const http = require('http');
-const { PeerServer } = require('peer');
 
 const app = express();
 app.use(express.json());
@@ -8,17 +7,14 @@ app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
 
-// Хранилища
 let serverFriendRequests = [];
 let serverFriends = {};
 let peerIds = {};
 
-// Отдаём index.html
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
 
-// API друзья
 app.get('/api/friend-requests/:userId', (req, res) => {
   const pending = serverFriendRequests.filter(r => r.to === req.params.userId && r.status === 'pending');
   res.json(pending);
@@ -75,21 +71,9 @@ app.get('/api/peerid/:userId', (req, res) => {
 });
 
 app.get('/api/test', (req, res) => {
-  res.json({ status: 'ok', peerIds, friends: serverFriends });
+  res.json({ status: 'ok' });
 });
 
-// Создаём HTTP сервер
-const server = http.createServer(app);
-
-// PeerJS — привязываем к основному серверу
-const peerServer = PeerServer({
-  server: server,
-  path: '/myapp',
-  allow_discovery: true
-});
-
-// Запускаем
-server.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`PeerJS running on same port at /myapp`);
 });
