@@ -1,11 +1,13 @@
 const express = require('express');
 const http = require('http');
+const { PeerServer } = require('peer');
 
 const app = express();
 app.use(express.json());
 app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
+const PEER_PORT = 54321;
 
 let serverFriendRequests = [];
 let serverFriends = {};
@@ -74,6 +76,16 @@ app.get('/api/test', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Express на порту 3000
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Express running on port ${PORT}`);
 });
+
+// PeerJS отдельно на порту 9001
+const peerServer = PeerServer({
+  port: PEER_PORT,
+  path: '/myapp',
+  allow_discovery: true
+});
+
+console.log(`PeerJS running on port ${PEER_PORT}`);
