@@ -1330,9 +1330,10 @@ if (data.type === 'voice_join') {
     const peerId = currentUser.id + '-' + Date.now().toString(36);
     peer = new Peer(peerId, {
         debug: 2,
-        host: '0.peerjs.com',
-        port: 443,
-        secure: true,
+        host: 'peerjs-server.herokuapp.com',
+port: 443,
+secure: true,
+path: '/',
         path: '/',
         config: {
             iceServers: [
