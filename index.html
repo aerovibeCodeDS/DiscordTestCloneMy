@@ -970,7 +970,13 @@ function openFilePreview(dataUrl, fileName, coverData) {
         if (isLogin) {
             const user = d.users.find(u => u.email === email && u.password === pass);
             if (!user) { err.textContent = 'Неверный email или пароль'; return; }
-            currentUser = user; setSession(user.id); showApp();
+            currentUser = user;
+            // В функции handleAuth, после currentUser = user;
+fetch('/api/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: user.id, username: user.username, email: user.email })
+}).catch(() => {}); setSession(user.id); showApp();
             toast('Добро пожаловать, ' + user.username + '!', 'success');
         } else {
             if (d.users.find(u => u.email === email)) { err.textContent = 'Email уже существует'; return; }
@@ -2509,38 +2515,71 @@ function sendFiles(files) {
 
     // ===== ДРУЗЬЯ =====
     function sendFriendRequest(identifier) {
-        const d = loadData(); let target = findUserByIdentifier(d, identifier);
-        if (!target) { toast('Пользователь не найден. Ваш ID: ' + currentUser.id, 'error'); return; }
-        if (!target) {
-    // Создаём пользователя локально, если его нет
-    target = {
-        id: identifier,
-        email: identifier + '@unknown.com',
-        password: '',
-        username: 'User_' + identifier,
-        avatar: null,
-        status: 'offline',
-        friends: [],
-        blocked: [],
-        notifications: [],
-        createdAt: now()
-    };
-    d.users.push(target);
-    saveData(d);
-}
-        if (target.id === currentUser.id) { toast('Нельзя добавить себя', 'error'); return; }
-        if (isFriend(d, currentUser.id, target.id)) { toast('Уже в друзьях', 'info'); return; }
-        if (isBlocked(d, currentUser.id, target.id) || isBlocked(d, target.id, currentUser.id)) { toast('Пользователь в черном списке', 'error'); return; }
-        const existing = d.friendRequests.find(function(r) { return (r.from === currentUser.id && r.to === target.id) || (r.from === target.id && r.to === currentUser.id); });
-        if (existing && existing.status === 'pending') { toast('Запрос уже отправлен', 'info'); return; }
-        d.friendRequests.push({ id: genId(d), from: currentUser.id, to: target.id, status: 'pending', createdAt: now() });
-        saveData(d);
-        renderAll();
-        broadcast({ type: 'friend_request', from: currentUser.id, to: target.id });
-        broadcast({ type: 'data_updated' });
-        addNotification(`Запрос в друзья отправлен ${target.username}`, 'fa-paper-plane');
-        toast('Запрос в друзья отправлен ' + target.username, 'success');
+    const d = loadData();
+    let target = findUserByIdentifier(d, identifier);
+    
+    // Если не нашли локально — ищем на сервере
+    if (!target) {
+        fetch('/api/user/' + identifier)
+            .then(res => res.json())
+            .then(serverUser => {
+                if (serverUser && serverUser.id) {
+                    // Создаём пользователя локально
+                    const newUser = {
+                        id: serverUser.id,
+                        email: serverUser.email || serverUser.id + '@server.com',
+                        password: '',
+                        username: serverUser.username || 'User_' + serverUser.id,
+                        avatar: null,
+                        status: 'online',
+                        friends: [],
+                        blocked: [],
+                        notifications: [],
+                        createdAt: now()
+                    };
+                    const d2 = loadData();
+                    if (!findUser(d2, newUser.id)) {
+                        d2.users.push(newUser);
+                        saveData(d2);
+                    }
+                    // Отправляем заявку
+                    doSendFriendRequest(d2, newUser.id);
+                } else {
+                    toast('Пользователь не найден. Твой ID: ' + currentUser.id, 'error');
+                }
+            })
+            .catch(() => toast('Ошибка поиска пользователя', 'error'));
+        return;
     }
+    
+    doSendFriendRequest(d, target.id);
+}
+
+function doSendFriendRequest(d, targetId) {
+    if (targetId === currentUser.id) { toast('Нельзя добавить себя', 'error'); return; }
+    if (isFriend(d, currentUser.id, targetId)) { toast('Уже в друзьях', 'info'); return; }
+    if (isBlocked(d, currentUser.id, targetId) || isBlocked(d, targetId, currentUser.id)) { 
+        toast('Пользователь в черном списке', 'error'); 
+        return; 
+    }
+    const existing = d.friendRequests.find(function(r) { 
+        return (r.from === currentUser.id && r.to === targetId) || 
+               (r.from === targetId && r.to === currentUser.id); 
+    });
+    if (existing && existing.status === 'pending') { toast('Запрос уже отправлен', 'info'); return; }
+    d.friendRequests.push({ 
+        id: genId(d), 
+        from: currentUser.id, 
+        to: targetId, 
+        status: 'pending', 
+        createdAt: now() 
+    });
+    saveData(d);
+    renderAll();
+    broadcast({ type: 'friend_request', from: currentUser.id, to: targetId });
+    addNotification(`Запрос в друзья отправлен пользователю`, 'fa-paper-plane');
+    toast('Запрос в друзья отправлен', 'success');
+}
     function acceptFriendRequest(reqId) {
         const d = loadData(); const req = d.friendRequests.find(function(r) { return r.id === reqId; }); if (!req) return;
         req.status = 'accepted'; const from = findUser(d, req.from), to = findUser(d, req.to);

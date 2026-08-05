@@ -13,6 +13,26 @@ const server = http.createServer(app);
 let serverFriendRequests = [];
 let serverFriends = {};
 let peerIds = {};
+// Сохранение пользователя на сервере
+let serverUsers = {};
+
+app.post('/api/register', (req, res) => {
+  const { id, username, email } = req.body;
+  if (!id) return res.status(400).json({ error: 'id required' });
+  serverUsers[id] = { id, username, email };
+  console.log('User registered on server:', username, id);
+  res.json({ success: true });
+});
+
+app.get('/api/user/:id', (req, res) => {
+  const user = serverUsers[req.params.id];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json(user);
+});
+
+app.get('/api/users', (req, res) => {
+  res.json(Object.values(serverUsers));
+});
 
 // API друзья
 app.get('/api/friend-requests/:userId', (req, res) => {
