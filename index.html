@@ -2514,45 +2514,55 @@ function sendFiles(files) {
     });
 
     // ===== ДРУЗЬЯ =====
-    function sendFriendRequest(identifier) {
+   function sendFriendRequest(identifier) {
     const d = loadData();
     let target = findUserByIdentifier(d, identifier);
     
-    // Если не нашли локально — ищем на сервере
     if (!target) {
-        fetch('/api/user/' + identifier)
-            .then(res => res.json())
-            .then(serverUser => {
-                if (serverUser && serverUser.id) {
-                    // Создаём пользователя локально
-                    const newUser = {
-                        id: serverUser.id,
-                        email: serverUser.email || serverUser.id + '@server.com',
-                        password: '',
-                        username: serverUser.username || 'User_' + serverUser.id,
-                        avatar: null,
-                        status: 'online',
-                        friends: [],
-                        blocked: [],
-                        notifications: [],
-                        createdAt: now()
-                    };
-                    const d2 = loadData();
-                    if (!findUser(d2, newUser.id)) {
-                        d2.users.push(newUser);
-                        saveData(d2);
-                    }
-                    // Отправляем заявку
-                    doSendFriendRequest(d2, newUser.id);
-                } else {
-                    toast('Пользователь не найден. Твой ID: ' + currentUser.id, 'error');
-                }
-            })
-            .catch(() => toast('Ошибка поиска пользователя', 'error'));
-        return;
+        // Создаём пользователя локально, если не найден
+        target = {
+            id: identifier,
+            email: identifier + '@unknown.com',
+            password: '',
+            username: 'User_' + identifier.slice(0, 8),
+            avatar: null,
+            status: 'online',
+            friends: [],
+            blocked: [],
+            notifications: [],
+            createdAt: now()
+        };
+        d.users.push(target);
+        saveData(d);
     }
     
-    doSendFriendRequest(d, target.id);
+    if (target.id === currentUser.id) { toast('Нельзя добавить себя', 'error'); return; }
+    if (isFriend(d, currentUser.id, target.id)) { toast('Уже в друзьях', 'info'); return; }
+    if (isBlocked(d, currentUser.id, target.id) || isBlocked(d, target.id, currentUser.id)) { 
+        toast('Пользователь в черном списке', 'error'); return; 
+    }
+    
+    const existing = d.friendRequests.find(function(r) { 
+        return (r.from === currentUser.id && r.to === target.id) || 
+               (r.from === target.id && r.to === currentUser.id); 
+    });
+    if (existing && existing.status === 'pending') { 
+        toast('Запрос уже отправлен', 'info'); 
+        return; 
+    }
+    
+    d.friendRequests.push({ 
+        id: genId(d), 
+        from: currentUser.id, 
+        to: target.id, 
+        status: 'pending', 
+        createdAt: now() 
+    });
+    saveData(d);
+    renderAll();
+    broadcast({ type: 'friend_request', from: currentUser.id, to: target.id });
+    addNotification('Запрос в друзья отправлен пользователю ' + target.username, 'fa-paper-plane');
+    toast('Запрос в друзья отправлен ' + target.username, 'success');
 }
 
 function doSendFriendRequest(d, targetId) {
@@ -2595,19 +2605,12 @@ function doSendFriendRequest(d, targetId) {
         const d = loadData(); const idx = d.friendRequests.findIndex(function(r) { return r.id === reqId; });
         if (idx >= 0) { d.friendRequests.splice(idx, 1); saveData(d); renderAll(); broadcast({ type: 'data_updated' }); toast('Запрос отклонен', 'info'); }
     }
+    
     function findUserByIdentifier(d, identifier) {
     const s = String(identifier).trim();
-    let user = d.users.find(function(u) { return String(u.id) === s || u.email === s || u.username === s; });
-    if (!user && d.notifications) {
-        // Ищем в уведомлениях (заявках от других пользователей)
-        for (const notif of d.notifications) {
-            if (notif.fromUserId && String(notif.fromUserId) === s) {
-                user = findUser(d, notif.fromUserId);
-                if (user) break;
-            }
-        }
-    }
-    return user;
+    return d.users.find(function(u) { 
+        return String(u.id) === s || u.email === s || u.username === s; 
+    });
 }
 
     // ===== КОНТЕКСТНОЕ МЕНЮ =====
