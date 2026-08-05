@@ -1324,29 +1324,39 @@ if (data.type === 'voice_join') {
     let currentCall = null;
     let incomingCall = null;
 
-    function initPeer() {
-    if (!currentUser) return;
-    if (peer) { peer.destroy(); peer = null; }
-    const peerId = currentUser.id + '-' + Date.now().toString(36);
-    peer = new Peer(peerId, {
-        debug: 2,
-        host: '7b1ee0413f59cc.lhr.life',
+function initPeer() {
+if (!currentUser) return;
+if (peer) { peer.destroy(); peer = null; }
+ const peerId = currentUser.id + '-' + Date.now().toString(36);
+peer = new Peer(peerId, {
+debug: 2,
+host: 'discordclone.serveousercontent.com',
 port: 443,
 secure: true,
 path: '/myapp',
 config: {
     iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun.relay.metered.ca:80" },
         {
-            username: "SPGKAeGea5hrzd98tmcHWgId0StfWuW9evOeqysWzlPyZF4iVgFeqjU3QECkvxidAAAAAGpzWhtMdXNreXl5",
-            credential: "6459b330-90e4-11f1-b2b0-0242ac140004",
-            urls: [
-                "turn:bn-turn1.xirsys.com:80?transport=udp",
-                "turn:bn-turn1.xirsys.com:3478?transport=udp",
-                "turn:bn-turn1.xirsys.com:80?transport=tcp",
-                "turn:bn-turn1.xirsys.com:3478?transport=tcp"
-            ]
+            urls: "turn:global.relay.metered.ca:80",
+            username: "72d4c4ece5eb71f34b80fbd5",
+            credential: "xRNJz9GL0xnUyY3M"
+        },
+        {
+            urls: "turn:global.relay.metered.ca:80?transport=tcp",
+            username: "72d4c4ece5eb71f34b80fbd5",
+            credential: "xRNJz9GL0xnUyY3M"
+        },
+        {
+            urls: "turn:global.relay.metered.ca:443",
+            username: "72d4c4ece5eb71f34b80fbd5",
+            credential: "xRNJz9GL0xnUyY3M"
+        },
+        {
+            urls: "turns:global.relay.metered.ca:443?transport=tcp",
+            username: "72d4c4ece5eb71f34b80fbd5",
+            credential: "xRNJz9GL0xnUyY3M"
         }
     ]
 }
@@ -2501,6 +2511,23 @@ function sendFiles(files) {
     function sendFriendRequest(identifier) {
         const d = loadData(); let target = findUserByIdentifier(d, identifier);
         if (!target) { toast('Пользователь не найден. Ваш ID: ' + currentUser.id, 'error'); return; }
+        if (!target) {
+    // Создаём пользователя локально, если его нет
+    target = {
+        id: identifier,
+        email: identifier + '@unknown.com',
+        password: '',
+        username: 'User_' + identifier,
+        avatar: null,
+        status: 'offline',
+        friends: [],
+        blocked: [],
+        notifications: [],
+        createdAt: now()
+    };
+    d.users.push(target);
+    saveData(d);
+}
         if (target.id === currentUser.id) { toast('Нельзя добавить себя', 'error'); return; }
         if (isFriend(d, currentUser.id, target.id)) { toast('Уже в друзьях', 'info'); return; }
         if (isBlocked(d, currentUser.id, target.id) || isBlocked(d, target.id, currentUser.id)) { toast('Пользователь в черном списке', 'error'); return; }
@@ -2529,7 +2556,20 @@ function sendFiles(files) {
         const d = loadData(); const idx = d.friendRequests.findIndex(function(r) { return r.id === reqId; });
         if (idx >= 0) { d.friendRequests.splice(idx, 1); saveData(d); renderAll(); broadcast({ type: 'data_updated' }); toast('Запрос отклонен', 'info'); }
     }
-    function findUserByIdentifier(d, identifier) { const s = String(identifier).trim(); return d.users.find(function(u) { return String(u.id) === s || u.email === s || u.username === s; }); }
+    function findUserByIdentifier(d, identifier) {
+    const s = String(identifier).trim();
+    let user = d.users.find(function(u) { return String(u.id) === s || u.email === s || u.username === s; });
+    if (!user && d.notifications) {
+        // Ищем в уведомлениях (заявках от других пользователей)
+        for (const notif of d.notifications) {
+            if (notif.fromUserId && String(notif.fromUserId) === s) {
+                user = findUser(d, notif.fromUserId);
+                if (user) break;
+            }
+        }
+    }
+    return user;
+}
 
     // ===== КОНТЕКСТНОЕ МЕНЮ =====
     let ctxTarget = null;
